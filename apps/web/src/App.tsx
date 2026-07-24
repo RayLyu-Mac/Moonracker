@@ -6,7 +6,6 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DataUploadPage } from "./pages/DataUploadPage";
 import { SiteDetailPage } from "./pages/SiteDetailPage";
 import { SitesPage } from "./pages/SitesPage";
-import { StudiesPage } from "./pages/StudiesPage";
 
 function App() {
   return (
@@ -16,7 +15,6 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="sites" element={<SitesPage />} />
           <Route path="sites/:siteId" element={<SiteDetailPage />} />
-          <Route path="studies" element={<StudiesPage />} />
           <Route path="upload" element={<DataUploadPage />} />
           <Route path="configuration" element={<ConfigurationPage />} />
           <Route path="ai-assistant" element={<AIAssistantPage />} />

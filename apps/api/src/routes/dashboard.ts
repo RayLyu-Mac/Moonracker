@@ -9,10 +9,10 @@ dashboardRouter.get("/kpis", (_req, res) => {
       `SELECT
         (SELECT COUNT(*) FROM sites) AS total_sites,
         (SELECT COUNT(*) FROM studies) AS total_studies,
-        (SELECT COUNT(*) FROM site_scores WHERE risk_level = 'high') AS high_risk_sites,
-        (SELECT COUNT(*) FROM site_scores WHERE risk_level = 'medium') AS medium_risk_sites,
-        (SELECT COUNT(*) FROM site_scores WHERE risk_level = 'low') AS low_risk_sites,
-        COALESCE((SELECT ROUND(AVG(total_score), 1) FROM site_scores), 0) AS average_site_health_score`,
+        (SELECT COUNT(*) FROM recruitment_scores WHERE recruitment_band = 'high') AS high_risk_sites,
+        (SELECT COUNT(*) FROM recruitment_scores WHERE recruitment_band = 'medium') AS medium_risk_sites,
+        (SELECT COUNT(*) FROM recruitment_scores WHERE recruitment_band = 'low') AS low_risk_sites,
+        COALESCE((SELECT ROUND(AVG(total_score), 1) FROM recruitment_scores), 0) AS average_site_health_score`,
     )
     .get() as {
     total_sites: number;
@@ -36,9 +36,9 @@ dashboardRouter.get("/kpis", (_req, res) => {
 dashboardRouter.get("/risk-distribution", (_req, res) => {
   const rows = db
     .prepare(
-      `SELECT risk_level AS riskLevel, COUNT(*) AS count
-       FROM site_scores
-       GROUP BY risk_level`,
+      `SELECT recruitment_band AS riskLevel, COUNT(*) AS count
+       FROM recruitment_scores
+       GROUP BY recruitment_band`,
     )
     .all();
   res.json(rows);
@@ -47,9 +47,10 @@ dashboardRouter.get("/risk-distribution", (_req, res) => {
 dashboardRouter.get("/status-distribution", (_req, res) => {
   const rows = db
     .prepare(
-      `SELECT site_status AS status, COUNT(*) AS count
-       FROM sites
-       GROUP BY site_status`,
+      `SELECT rp.site_type AS status, COUNT(*) AS count
+       FROM recruitment_profiles rp
+       GROUP BY rp.site_type
+       ORDER BY count DESC`,
     )
     .all();
   res.json(rows);
@@ -70,10 +71,11 @@ dashboardRouter.get("/sites-by-country", (_req, res) => {
 dashboardRouter.get("/top-risk-sites", (_req, res) => {
   const rows = db
     .prepare(
-      `SELECT s.site_id, s.site_number, s.site_name, s.country, ss.total_score, ss.risk_level
-       FROM site_scores ss
-       JOIN sites s ON s.site_id = ss.site_id
-       ORDER BY ss.total_score ASC
+      `SELECT s.site_id, s.site_number, s.site_name, s.country, rp.site_type, rs.total_score, rs.recruitment_band AS risk_level
+       FROM recruitment_scores rs
+       JOIN sites s ON s.site_id = rs.site_id
+       JOIN recruitment_profiles rp ON rp.site_id = s.site_id
+       ORDER BY rs.total_score DESC, s.site_name ASC
        LIMIT 10`,
     )
     .all();
@@ -85,12 +87,28 @@ dashboardRouter.get("/study-comparison", (_req, res) => {
     .prepare(
       `SELECT st.study_id, st.title,
               COUNT(DISTINCT s.site_id) AS total_sites,
-              COALESCE(ROUND(AVG(ss.total_score), 1), 0) AS avg_score
+          COALESCE(ROUND(AVG(rs.total_score), 1), 0) AS avg_score
        FROM studies st
        LEFT JOIN sites s ON s.study_id = st.study_id
-       LEFT JOIN site_scores ss ON ss.study_id = st.study_id
+        LEFT JOIN recruitment_scores rs ON rs.study_id = st.study_id
        GROUP BY st.study_id, st.title
        ORDER BY avg_score DESC`,
+    )
+    .all();
+  res.json(rows);
+});
+
+dashboardRouter.get("/predicted-vs-actual", (_req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT s.site_id, s.site_name, s.country, rp.site_type,
+              rp.imported_recruitment_score AS predicted,
+              rs.total_score AS actual,
+              rs.recruitment_band
+       FROM sites s
+       JOIN recruitment_profiles rp ON rp.site_id = s.site_id
+       JOIN recruitment_scores rs    ON rs.site_id  = s.site_id
+       ORDER BY s.site_name ASC`,
     )
     .all();
   res.json(rows);

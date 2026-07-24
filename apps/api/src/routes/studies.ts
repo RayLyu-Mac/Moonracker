@@ -8,10 +8,10 @@ studiesRouter.get("/", (_req, res) => {
     .prepare(
       `SELECT st.study_id, st.protocol_code, st.title, st.sponsor, st.company, st.country, st.status,
               COUNT(DISTINCT s.site_id) AS total_sites,
-              COALESCE(ROUND(AVG(sc.total_score), 1), 0) AS average_score
+          COALESCE(ROUND(AVG(rs.total_score), 1), 0) AS average_score
        FROM studies st
        LEFT JOIN sites s ON s.study_id = st.study_id
-       LEFT JOIN site_scores sc ON sc.study_id = st.study_id
+        LEFT JOIN recruitment_scores rs ON rs.study_id = st.study_id
        GROUP BY st.study_id, st.protocol_code, st.title, st.sponsor, st.company, st.country, st.status
        ORDER BY st.created_at DESC`,
     )

@@ -7,6 +7,7 @@ import { sitesRouter } from "./routes/sites";
 import { studiesRouter } from "./routes/studies";
 import { uploadsRouter } from "./routes/uploads";
 import { configurationRouter } from "./routes/configuration";
+import { aiRouter } from "./routes/ai";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/sites", sitesRouter);
 app.use("/api/studies", studiesRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/configuration", configurationRouter);
+app.use("/api/ai", aiRouter);
 
 const port = Number(process.env.PORT || 8787);
 app.listen(port, () => {

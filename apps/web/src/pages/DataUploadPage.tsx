@@ -10,11 +10,12 @@ const categories = [
   { value: "retention_tracker", label: "Retention Tracker" },
   { value: "enrollment_tracker", label: "Enrollment Tracker" },
   { value: "study_metadata", label: "Study Metadata" },
+  { value: "recruitment_profile", label: "Recruitment Profile CSV" },
   { value: "documents", label: "Documents (PDF metadata only)" },
 ];
 
 export function DataUploadPage() {
-  const [category, setCategory] = useState("site_status");
+  const [category, setCategory] = useState("recruitment_profile");
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -47,7 +48,7 @@ export function DataUploadPage() {
     <div className="space-y-4">
       <header>
         <h2 className="text-2xl font-semibold text-slate-900">Data Upload</h2>
-        <p className="text-sm text-slate-600">Upload CSV, XLSX, or PDF and run strict template validation before ingestion.</p>
+        <p className="text-sm text-slate-600">Upload the recruitment profile CSV to seed the MVP dashboard, or use the legacy templates if needed.</p>
       </header>
 
       <Card>

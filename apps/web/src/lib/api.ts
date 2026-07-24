@@ -39,8 +39,21 @@ export const api = {
   getSiteDetail: (siteId: string) => request<any>(`/api/sites/${siteId}`),
   getStudies: () => request<any[]>("/api/studies"),
   getUploadHistory: () => request<any[]>("/api/uploads/history"),
-  getWeights: () => request<{ startup: number; staffing: number; retention: number; enrollment: number }>("/api/configuration/weights"),
-  saveWeights: (payload: { startup: number; staffing: number; retention: number; enrollment: number }) =>
+  getWeights: () =>
+    request<{
+      diseasePrevalence: number;
+      historicalRecruitment: number;
+      siteType: number;
+      adminEfficiency: number;
+      prescreening: number;
+    }>("/api/configuration/weights"),
+  saveWeights: (payload: {
+    diseasePrevalence: number;
+    historicalRecruitment: number;
+    siteType: number;
+    adminEfficiency: number;
+    prescreening: number;
+  }) =>
     request<{ success: boolean }>("/api/configuration/weights", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -57,4 +70,30 @@ export const api = {
 
     return response.json();
   },
+  getAiSettings: () =>
+    request<{ baseUrl: string | null; model: string; hasToken: boolean }>("/api/configuration/ai-settings"),
+  saveAiSettings: (payload: { baseUrl: string; model: string; token: string }) =>
+    request<{ success: boolean }>("/api/configuration/ai-settings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteAiSettings: () =>
+    request<{ success: boolean }>("/api/configuration/ai-settings", {
+      method: "DELETE",
+    }),
+  aiChat: (messages: Array<{ role: "user" | "assistant"; content: string }>) =>
+    request<{ content: string }>("/api/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({ messages }),
+    }),
+  getPredictedVsActual: () =>
+    request<Array<{
+      site_id: string;
+      site_name: string;
+      country: string;
+      site_type: string;
+      predicted: number;
+      actual: number;
+      recruitment_band: string;
+    }>>("/api/dashboard/predicted-vs-actual"),
 };

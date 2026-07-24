@@ -19,10 +19,11 @@ for (const file of files) {
 }
 
 const defaultWeights = JSON.stringify({
-  startup: 0.25,
-  staffing: 0.25,
-  retention: 0.25,
-  enrollment: 0.25,
+  diseasePrevalence: 0.2,
+  historicalRecruitment: 0.2,
+  siteType: 0.2,
+  adminEfficiency: 0.2,
+  prescreening: 0.2,
 });
 
 db.prepare(

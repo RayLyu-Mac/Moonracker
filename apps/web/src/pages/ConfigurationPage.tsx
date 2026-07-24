@@ -4,7 +4,13 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 
 export function ConfigurationPage() {
-  const [weights, setWeights] = useState({ startup: 0.25, staffing: 0.25, retention: 0.25, enrollment: 0.25 });
+  const [weights, setWeights] = useState({
+    diseasePrevalence: 0.2,
+    historicalRecruitment: 0.2,
+    siteType: 0.2,
+    adminEfficiency: 0.2,
+    prescreening: 0.2,
+  });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -13,7 +19,12 @@ export function ConfigurationPage() {
   }, []);
 
   const total = useMemo(
-    () => weights.startup + weights.staffing + weights.retention + weights.enrollment,
+    () =>
+      weights.diseasePrevalence +
+      weights.historicalRecruitment +
+      weights.siteType +
+      weights.adminEfficiency +
+      weights.prescreening,
     [weights],
   );
 
@@ -30,23 +41,24 @@ export function ConfigurationPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <header>
-        <h2 className="text-2xl font-semibold text-slate-900">Configuration</h2>
-        <p className="text-sm text-slate-600">Adjust rule-based scoring weights. The sum must equal 1.00.</p>
+        <h2 className="text-4xl font-semibold text-slate-900">Configuration</h2>
+        <p className="mt-2 text-lg text-slate-600">Adjust recruitment scoring weights. The sum must equal 1.00.</p>
       </header>
 
       <Card>
         <div className="grid gap-4 md:grid-cols-2">
           {(
             [
-              ["startup", "Startup Readiness"],
-              ["staffing", "Staffing Capacity"],
-              ["retention", "Retention Quality"],
-              ["enrollment", "Enrollment Performance"],
+              ["diseasePrevalence", "Disease prevalence (CDC Wonder)"],
+              ["historicalRecruitment", "Historical data and recruitment rate"],
+              ["siteType", "Hospital / clinic / university"],
+              ["adminEfficiency", "Contract execution and admin efficiency"],
+              ["prescreening", "Prescreening logs"],
             ] as const
           ).map(([key, label]) => (
-            <label key={key} className="space-y-2 text-sm">
+            <label key={key} className="space-y-2 text-base">
               <span className="font-medium text-slate-700">{label}</span>
               <input
                 value={weights[key]}
@@ -55,14 +67,14 @@ export function ConfigurationPage() {
                 min={0}
                 max={1}
                 step={0.01}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-base"
               />
             </label>
           ))}
         </div>
 
         <div className="mt-4 flex items-center justify-between">
-          <p className={`text-sm ${Math.abs(total - 1) < 0.001 ? "text-emerald-700" : "text-rose-600"}`}>
+          <p className={`text-base ${Math.abs(total - 1) < 0.001 ? "text-emerald-700" : "text-rose-600"}`}>
             Current total: {total.toFixed(2)}
           </p>
           <Button onClick={save} disabled={saving || Math.abs(total - 1) >= 0.001}>
@@ -70,7 +82,7 @@ export function ConfigurationPage() {
           </Button>
         </div>
 
-        {message && <p className="mt-3 text-sm text-slate-600">{message}</p>}
+        {message && <p className="mt-3 text-base text-slate-600">{message}</p>}
       </Card>
     </div>
   );

@@ -18,8 +18,7 @@ export function SitesPage() {
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    if (filters.study) params.set("study", filters.study);
-    if (filters.siteStatus) params.set("status", filters.siteStatus);
+    if (filters.siteStatus) params.set("siteType", filters.siteStatus);
     if (filters.country) params.set("country", filters.country);
     if (filters.sponsor) params.set("sponsor", filters.sponsor);
     if (filters.riskLevel) params.set("risk", filters.riskLevel);
@@ -31,26 +30,25 @@ export function SitesPage() {
   }, [query]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <header>
-        <h2 className="text-2xl font-semibold text-slate-900">Sites</h2>
-        <p className="text-sm text-slate-600">All participating sites with operational health and enrollment risk visibility.</p>
+        <h2 className="text-4xl font-semibold text-slate-900">Sites</h2>
+        <p className="mt-2 text-lg text-slate-600">All clinics, hospitals, and universities ranked by the recruitment score model.</p>
       </header>
 
       <Card className="overflow-x-auto p-0">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+        <table className="min-w-full text-base">
+          <thead className="bg-slate-50 text-left text-sm uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Site Number</th>
               <th className="px-4 py-3">Site Name</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">City</th>
               <th className="px-4 py-3">Country</th>
-              <th className="px-4 py-3">Study</th>
               <th className="px-4 py-3">Sponsor</th>
-              <th className="px-4 py-3">PI</th>
-              <th className="px-4 py-3">Site Status</th>
-              <th className="px-4 py-3">Health Score</th>
-              <th className="px-4 py-3">Risk Level</th>
-              <th className="px-4 py-3">Open Cases</th>
+              <th className="px-4 py-3">Recruitment Score</th>
+              <th className="px-4 py-3">Recruitment Band</th>
+              <th className="px-4 py-3">Imported Score</th>
             </tr>
           </thead>
           <tbody>
@@ -62,24 +60,23 @@ export function SitesPage() {
               >
                 <td className="px-4 py-3 font-medium text-slate-800">{site.site_number}</td>
                 <td className="px-4 py-3 text-slate-700">{site.site_name}</td>
+                <td className="px-4 py-3 capitalize text-slate-600">{site.site_type}</td>
+                <td className="px-4 py-3 text-slate-600">{site.city}</td>
                 <td className="px-4 py-3 text-slate-600">{site.country}</td>
-                <td className="px-4 py-3 text-slate-600">{site.study}</td>
                 <td className="px-4 py-3 text-slate-600">{site.sponsor}</td>
-                <td className="px-4 py-3 text-slate-600">{site.pi}</td>
-                <td className="px-4 py-3 capitalize text-slate-600">{site.site_status}</td>
-                <td className="px-4 py-3 text-slate-600">{site.health_score}</td>
+                <td className="px-4 py-3 text-slate-600">{site.recruitment_score}</td>
                 <td className="px-4 py-3">
-                  <Badge variant={riskVariant[site.risk_level as keyof typeof riskVariant] ?? "high"} className="capitalize">
-                    {site.risk_level}
+                  <Badge variant={riskVariant[site.recruitment_band as keyof typeof riskVariant] ?? "high"} className="capitalize">
+                    {site.recruitment_band}
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{site.open_cases}</td>
+                <td className="px-4 py-3 text-slate-600">{site.imported_recruitment_score}</td>
               </tr>
             ))}
             {sites.length === 0 && (
               <tr>
-                <td className="px-4 py-6 text-center text-slate-500" colSpan={10}>
-                  No sites available. Upload Site Status and Enrollment Tracker files to populate this view.
+                <td className="px-4 py-6 text-center text-slate-500" colSpan={9}>
+                  No sites available. Upload the recruitment profile CSV to populate this view.
                 </td>
               </tr>
             )}

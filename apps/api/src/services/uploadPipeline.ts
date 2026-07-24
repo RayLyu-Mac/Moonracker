@@ -10,7 +10,10 @@ export type UploadCategory =
   | "retention_tracker"
   | "enrollment_tracker"
   | "study_metadata"
+  | "recruitment_profile"
   | "documents";
+
+const RECRUITMENT_STUDY_ID = "MVP-HEART-DISEASE";
 
 export type UploadResult = {
   uploadId: string;
@@ -29,6 +32,7 @@ const categorySchema = z.enum([
   "retention_tracker",
   "enrollment_tracker",
   "study_metadata",
+  "recruitment_profile",
   "documents",
 ]);
 
@@ -49,6 +53,24 @@ const requiredColumns: Record<Exclude<UploadCategory, "documents">, string[]> = 
     "ip_discontinuations",
   ],
   study_metadata: ["study_id", "protocol_code", "title", "sponsor", "company", "country", "status"],
+  recruitment_profile: [
+    "clinic_id",
+    "site_name",
+    "site_type",
+    "city",
+    "country",
+    "heart_disease_prevalence_per_100k",
+    "historical_avg_recruitment_rate_per_month",
+    "contract_execution_days",
+    "admin_efficiency_score",
+    "prescreened_count_30d",
+    "eligible_count_30d",
+    "screen_failure_rate_pct",
+    "prescreen_to_enroll_conversion_pct",
+    "input_data_quality_score",
+    "recruitment_likelihood_score",
+    "recruitment_likelihood_class",
+  ],
 };
 
 const parseTable = (buffer: Buffer, fileName: string): Record<string, string>[] => {
@@ -160,6 +182,71 @@ const validators: Partial<Record<UploadCategory, (row: Record<string, string>) =
     if (!row.title) errors.push("title is required");
     return errors;
   },
+  recruitment_profile: (row) => {
+    const errors: string[] = [];
+    if (!row.clinic_id) errors.push("clinic_id is required");
+    if (!row.site_name) errors.push("site_name is required");
+    if (!row.site_type) errors.push("site_type is required");
+    if (!row.country) errors.push("country is required");
+    if (!row.city) errors.push("city is required");
+    if (!["clinic", "hospital", "university"].includes((row.site_type || "").toLowerCase())) {
+      errors.push("site_type must be clinic, hospital, or university");
+    }
+    if (Number.isNaN(Number(row.recruitment_likelihood_score))) errors.push("recruitment_likelihood_score must be numeric");
+    return errors;
+  },
+};
+
+const ensureRecruitmentStudyAndSite = (row: Record<string, string>) => {
+  const upsertStudy = db.prepare(
+    `INSERT INTO studies (study_id, protocol_code, title, sponsor, company, country, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(study_id) DO UPDATE SET
+       title = excluded.title,
+       sponsor = excluded.sponsor,
+       company = excluded.company,
+       country = excluded.country,
+       status = excluded.status,
+       updated_at = CURRENT_TIMESTAMP`,
+  );
+
+  const upsertSite = db.prepare(
+    `INSERT INTO sites (
+      site_id, study_id, site_number, site_name, country, sponsor, principal_investigator, site_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(site_id) DO UPDATE SET
+      study_id = excluded.study_id,
+      site_number = excluded.site_number,
+      site_name = excluded.site_name,
+      country = excluded.country,
+      sponsor = excluded.sponsor,
+      principal_investigator = excluded.principal_investigator,
+      site_status = excluded.site_status,
+      updated_at = CURRENT_TIMESTAMP`,
+  );
+
+  const siteId = row.clinic_id.trim();
+
+  upsertStudy.run(
+    RECRUITMENT_STUDY_ID,
+    RECRUITMENT_STUDY_ID,
+    "Heart Disease Recruitment MVP",
+    "Moonracker MVP",
+    "Moonracker MVP",
+    "Global",
+    "active",
+  );
+
+  upsertSite.run(
+    siteId,
+    RECRUITMENT_STUDY_ID,
+    siteId,
+    row.site_name.trim(),
+    row.country.trim(),
+    "Moonracker MVP",
+    "Recruitment Benchmark Dataset",
+    "active",
+  );
 };
 
 export const processUpload = (params: {
@@ -277,6 +364,50 @@ export const processUpload = (params: {
        status = excluded.status,
        updated_at = CURRENT_TIMESTAMP`,
   );
+  const upsertRecruitmentProfile = db.prepare(
+    `INSERT INTO recruitment_profiles (
+      site_id, study_id, site_type, city, indication, prevalence_source,
+      heart_disease_prevalence_per_100k, catchment_population, estimated_patient_pool,
+      historical_study_1_enrolled, historical_study_1_months, historical_study_1_rate_per_month,
+      historical_study_2_enrolled, historical_study_2_months, historical_study_2_rate_per_month,
+      historical_study_3_enrolled, historical_study_3_months, historical_study_3_rate_per_month,
+      historical_avg_recruitment_rate_per_month, historical_trials_completed, historical_retention_rate_pct,
+      contract_execution_days, admin_efficiency_score, prescreened_count_30d, eligible_count_30d,
+      screen_failure_rate_pct, prescreen_to_enroll_conversion_pct, input_data_quality_score,
+      imported_recruitment_score, imported_recruitment_class
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(site_id) DO UPDATE SET
+      study_id = excluded.study_id,
+      site_type = excluded.site_type,
+      city = excluded.city,
+      indication = excluded.indication,
+      prevalence_source = excluded.prevalence_source,
+      heart_disease_prevalence_per_100k = excluded.heart_disease_prevalence_per_100k,
+      catchment_population = excluded.catchment_population,
+      estimated_patient_pool = excluded.estimated_patient_pool,
+      historical_study_1_enrolled = excluded.historical_study_1_enrolled,
+      historical_study_1_months = excluded.historical_study_1_months,
+      historical_study_1_rate_per_month = excluded.historical_study_1_rate_per_month,
+      historical_study_2_enrolled = excluded.historical_study_2_enrolled,
+      historical_study_2_months = excluded.historical_study_2_months,
+      historical_study_2_rate_per_month = excluded.historical_study_2_rate_per_month,
+      historical_study_3_enrolled = excluded.historical_study_3_enrolled,
+      historical_study_3_months = excluded.historical_study_3_months,
+      historical_study_3_rate_per_month = excluded.historical_study_3_rate_per_month,
+      historical_avg_recruitment_rate_per_month = excluded.historical_avg_recruitment_rate_per_month,
+      historical_trials_completed = excluded.historical_trials_completed,
+      historical_retention_rate_pct = excluded.historical_retention_rate_pct,
+      contract_execution_days = excluded.contract_execution_days,
+      admin_efficiency_score = excluded.admin_efficiency_score,
+      prescreened_count_30d = excluded.prescreened_count_30d,
+      eligible_count_30d = excluded.eligible_count_30d,
+      screen_failure_rate_pct = excluded.screen_failure_rate_pct,
+      prescreen_to_enroll_conversion_pct = excluded.prescreen_to_enroll_conversion_pct,
+      input_data_quality_score = excluded.input_data_quality_score,
+      imported_recruitment_score = excluded.imported_recruitment_score,
+      imported_recruitment_class = excluded.imported_recruitment_class,
+      updated_at = CURRENT_TIMESTAMP`,
+  );
 
   const tx = db.transaction(() => {
     rows.forEach((row, index) => {
@@ -354,6 +485,43 @@ export const processUpload = (params: {
           row.company,
           row.country,
           row.status,
+        );
+        inserted += 1;
+      }
+
+      if (category === "recruitment_profile") {
+        ensureRecruitmentStudyAndSite(row);
+        upsertRecruitmentProfile.run(
+          row.clinic_id.trim(),
+          RECRUITMENT_STUDY_ID,
+          row.site_type.trim().toLowerCase(),
+          row.city.trim(),
+          row.indication?.trim() || "Heart disease",
+          row.prevalence_source?.trim() || "Unknown source",
+          Number(row.heart_disease_prevalence_per_100k || 0),
+          Number(row.catchment_population || 0),
+          Number(row.estimated_patient_pool || 0),
+          Number(row.historical_study_1_enrolled || 0),
+          Number(row.historical_study_1_months || 0),
+          Number(row.historical_study_1_rate_per_month || 0),
+          Number(row.historical_study_2_enrolled || 0),
+          Number(row.historical_study_2_months || 0),
+          Number(row.historical_study_2_rate_per_month || 0),
+          Number(row.historical_study_3_enrolled || 0),
+          Number(row.historical_study_3_months || 0),
+          Number(row.historical_study_3_rate_per_month || 0),
+          Number(row.historical_avg_recruitment_rate_per_month || 0),
+          Number(row.historical_trials_completed || 0),
+          Number(row.historical_retention_rate_pct || 0),
+          Number(row.contract_execution_days || 0),
+          Number(row.admin_efficiency_score || 0),
+          Number(row.prescreened_count_30d || 0),
+          Number(row.eligible_count_30d || 0),
+          Number(row.screen_failure_rate_pct || 0),
+          Number(row.prescreen_to_enroll_conversion_pct || 0),
+          Number(row.input_data_quality_score || 0),
+          Number(row.recruitment_likelihood_score || 0),
+          row.recruitment_likelihood_class?.trim() || "Unknown",
         );
         inserted += 1;
       }

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 type DashboardFilters = {
-  study: string;
   siteStatus: string;
   country: string;
   sponsor: string;
@@ -16,7 +15,6 @@ type DashboardStore = {
 };
 
 const initialFilters: DashboardFilters = {
-  study: "",
   siteStatus: "",
   country: "",
   sponsor: "",

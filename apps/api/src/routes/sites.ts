@@ -3,19 +3,43 @@ import { db } from "../db/client";
 
 export const sitesRouter = Router();
 
+const EQUIPMENT_LIST = [
+  "12-Lead ECG Machine",
+  "Echocardiography System",
+  "Holter Monitor",
+  "Automated BP Monitoring",
+  "Cardiac Stress Test System",
+  "Defibrillator / AED",
+  "IV Infusion Pumps",
+  "−80°C Sample Freezer",
+  "CTMS / IWRS Access",
+  "Troponin Rapid Assay Kit",
+  "Randomisation Kit Storage",
+  "Emergency Resuscitation Cart",
+];
+
+const createSeededRandom = (seedText: string) => {
+  let seed = 2166136261;
+  for (let index = 0; index < seedText.length; index += 1) {
+    seed ^= seedText.charCodeAt(index);
+    seed += (seed << 1) + (seed << 4) + (seed << 7) + (seed << 8) + (seed << 24);
+  }
+
+  return () => {
+    seed = (1664525 * seed + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+};
+
 sitesRouter.get("/", (req, res) => {
-  const { study, status, country, sponsor, risk } = req.query;
+  const { siteType, country, sponsor, risk } = req.query;
 
   const whereClauses: string[] = [];
   const params: Array<string> = [];
 
-  if (typeof study === "string" && study.length > 0) {
-    whereClauses.push("st.study_id = ?");
-    params.push(study);
-  }
-  if (typeof status === "string" && status.length > 0) {
-    whereClauses.push("s.site_status = ?");
-    params.push(status);
+  if (typeof siteType === "string" && siteType.length > 0) {
+    whereClauses.push("rp.site_type = ?");
+    params.push(siteType);
   }
   if (typeof country === "string" && country.length > 0) {
     whereClauses.push("s.country = ?");
@@ -26,7 +50,7 @@ sitesRouter.get("/", (req, res) => {
     params.push(sponsor);
   }
   if (typeof risk === "string" && risk.length > 0) {
-    whereClauses.push("sc.risk_level = ?");
+    whereClauses.push("rs.recruitment_band = ?");
     params.push(risk);
   }
 
@@ -34,15 +58,19 @@ sitesRouter.get("/", (req, res) => {
 
   const rows = db
     .prepare(
-      `SELECT s.site_id, s.site_number, s.site_name, s.country, st.title AS study, s.sponsor,
-              s.principal_investigator AS pi, s.site_status, COALESCE(sc.total_score, 0) AS health_score,
-              COALESCE(sc.risk_level, 'high') AS risk_level,
-              (SELECT COUNT(*) FROM retention_cases rc WHERE rc.site_id = s.site_id AND rc.case_status = 'open') AS open_cases
+            `SELECT s.site_id, s.site_number, s.site_name, s.country, rp.city, rp.site_type, s.sponsor,
+              s.principal_investigator AS pi, s.site_status,
+              COALESCE(rs.total_score, rp.imported_recruitment_score, 0) AS recruitment_score,
+              COALESCE(rs.recruitment_band, 'high') AS recruitment_band,
+              rp.imported_recruitment_score, rp.imported_recruitment_class,
+              rp.historical_avg_recruitment_rate_per_month,
+              rp.admin_efficiency_score,
+              rp.prescreen_to_enroll_conversion_pct
        FROM sites s
-       JOIN studies st ON st.study_id = s.study_id
-       LEFT JOIN site_scores sc ON sc.site_id = s.site_id
+             LEFT JOIN recruitment_profiles rp ON rp.site_id = s.site_id
+             LEFT JOIN recruitment_scores rs ON rs.site_id = s.site_id
        ${where}
-       ORDER BY health_score ASC`,
+             ORDER BY recruitment_score DESC, s.site_name ASC`,
     )
     .all(...params);
 
@@ -53,15 +81,23 @@ sitesRouter.get("/:siteId", (req, res) => {
   const row = db
     .prepare(
       `SELECT s.site_id, s.site_number, s.site_name, s.country, s.site_status, s.sponsor,
-              s.principal_investigator, s.selection_date, s.activation_date, s.startup_duration_days,
-              st.study_id, st.title AS study_title,
-              sc.startup_score, sc.staffing_score, sc.retention_score, sc.enrollment_score,
-              sc.total_score, sc.risk_level
+          s.principal_investigator, s.selection_date, s.activation_date, s.startup_duration_days,
+          rp.site_type, rp.city, rp.prevalence_source, rp.heart_disease_prevalence_per_100k,
+          rp.catchment_population, rp.estimated_patient_pool,
+          rp.historical_study_1_enrolled, rp.historical_study_1_months, rp.historical_study_1_rate_per_month,
+          rp.historical_study_2_enrolled, rp.historical_study_2_months, rp.historical_study_2_rate_per_month,
+          rp.historical_study_3_enrolled, rp.historical_study_3_months, rp.historical_study_3_rate_per_month,
+          rp.historical_avg_recruitment_rate_per_month, rp.historical_trials_completed, rp.historical_retention_rate_pct,
+          rp.contract_execution_days, rp.admin_efficiency_score, rp.prescreened_count_30d,
+          rp.eligible_count_30d, rp.screen_failure_rate_pct, rp.prescreen_to_enroll_conversion_pct,
+          rp.input_data_quality_score, rp.imported_recruitment_score, rp.imported_recruitment_class,
+          rs.disease_prevalence_score, rs.historical_recruitment_score, rs.site_type_score,
+          rs.admin_efficiency_score AS admin_factor_score, rs.prescreening_score, rs.total_score,
+          rs.recruitment_band
        FROM sites s
-       JOIN studies st ON st.study_id = s.study_id
-       LEFT JOIN site_scores sc ON sc.site_id = s.site_id
+        LEFT JOIN recruitment_profiles rp ON rp.site_id = s.site_id
+        LEFT JOIN recruitment_scores rs ON rs.site_id = s.site_id
        WHERE s.site_id = ?
-       ORDER BY sc.created_at DESC
        LIMIT 1`,
     )
     .get(req.params.siteId);
@@ -73,50 +109,39 @@ sitesRouter.get("/:siteId", (req, res) => {
 
   const factors = db
     .prepare(
-      `SELECT category, factor_type, label, points, detail
-       FROM score_factors
+      `SELECT factor_key AS category, factor_type, label, points, detail
+       FROM recruitment_score_factors
        WHERE site_id = ?
-       ORDER BY factor_type DESC`,
+       ORDER BY points DESC`,
     )
     .all(req.params.siteId);
 
-  const retention = db
-    .prepare(
-      `SELECT
-        SUM(CASE WHEN case_type = 'ltfu' THEN 1 ELSE 0 END) AS ltfu_cases,
-        SUM(CASE WHEN case_type = 'withdrawal' THEN 1 ELSE 0 END) AS withdrawals,
-        SUM(CASE WHEN case_type = 'ip_discontinuation' THEN 1 ELSE 0 END) AS ip_discontinuations,
-        SUM(CASE WHEN case_status = 'open' THEN 1 ELSE 0 END) AS open_cases,
-        SUM(CASE WHEN case_status = 'closed' THEN 1 ELSE 0 END) AS closed_cases
-       FROM retention_cases
-       WHERE site_id = ?`,
-    )
-    .get(req.params.siteId);
+  const retention = {
+    ltfu_cases: 0,
+    withdrawals: 0,
+    ip_discontinuations: 0,
+    open_cases: 0,
+    closed_cases: 0,
+    historical_retention_rate_pct: (row as any).historical_retention_rate_pct ?? 0,
+  };
 
-  const enrollment = db
-    .prepare(
-      `SELECT target_enrollment, actual_enrollment,
-              CASE WHEN target_enrollment = 0 THEN 0
-                   ELSE ROUND(actual_enrollment * 100.0 / target_enrollment, 1)
-              END AS enrollment_pct,
-              screening_count, randomized_count
-       FROM enrollment_metrics
-       WHERE site_id = ?
-       ORDER BY metric_date DESC
-       LIMIT 1`,
-    )
-    .get(req.params.siteId);
+  const enrollment = {
+    target_enrollment: (row as any).estimated_patient_pool ?? 0,
+    actual_enrollment: Math.round(((row as any).historical_avg_recruitment_rate_per_month ?? 0) * 6),
+    enrollment_pct: 0,
+    screening_count: (row as any).prescreened_count_30d ?? 0,
+    randomized_count: (row as any).eligible_count_30d ?? 0,
+  };
 
-  const staffing = db
-    .prepare(
-      `SELECT
-        COUNT(*) AS total_staff,
-        SUM(CASE WHEN role LIKE '%CRC%' OR role LIKE '%coordinator%' THEN 1 ELSE 0 END) AS crc_count,
-        ROUND(AVG(capacity_ratio), 2) AS staff_capacity_score
-       FROM personnel
-       WHERE site_id = ?`,
-    )
-    .get(req.params.siteId);
+  enrollment.enrollment_pct = enrollment.target_enrollment > 0
+    ? Number(((enrollment.actual_enrollment / enrollment.target_enrollment) * 100).toFixed(1))
+    : 0;
+
+  const staffing = {
+    total_staff: null,
+    crc_count: null,
+    staff_capacity_score: null,
+  };
 
   const documents = db
     .prepare(
@@ -127,12 +152,68 @@ sitesRouter.get("/:siteId", (req, res) => {
     )
     .all();
 
+  const random = createSeededRandom(String((row as any).site_id));
+  const baseRuns = [
+    {
+      months: Number((row as any).historical_study_1_months ?? 6),
+      ratePerMonth: Number((row as any).historical_study_1_rate_per_month ?? (row as any).historical_avg_recruitment_rate_per_month ?? 6),
+    },
+    {
+      months: Number((row as any).historical_study_2_months ?? 6),
+      ratePerMonth: Number((row as any).historical_study_2_rate_per_month ?? (row as any).historical_avg_recruitment_rate_per_month ?? 6),
+    },
+    {
+      months: Number((row as any).historical_study_3_months ?? 6),
+      ratePerMonth: Number((row as any).historical_study_3_rate_per_month ?? (row as any).historical_avg_recruitment_rate_per_month ?? 6),
+    },
+  ];
+
+  const historicalRecruitmentRows = Array.from({ length: 6 }, (_, index) => {
+    const base = baseRuns[index % baseRuns.length];
+    const monthFactor = 0.8 + random() * 0.5;
+    const rateFactor = 0.78 + random() * 0.5;
+    const months = Math.max(3, Math.round(base.months * monthFactor));
+    const ratePerMonth = Number((base.ratePerMonth * rateFactor).toFixed(1));
+    const enrolled = Math.max(5, Math.round(months * ratePerMonth));
+
+    return {
+      label: `Recruitment Run ${index + 1}`,
+      months,
+      ratePerMonth,
+      enrolled,
+    };
+  });
+
+  // Determine if site is in current study (mark 3-5 sites as "not in study" deterministically)
+  const siteId = Number((row as any).site_id);
+  const inCurrentStudy = !([2, 3, 4, 5].includes(siteId));
+
   res.json({
-    site: row,
+    site: {
+      ...(row as any),
+      inCurrentStudy,
+    },
     factors,
+    historicalRecruitmentRows,
     retention,
     enrollment,
     staffing,
     documents,
+    equipment: (() => {
+      const rng = createSeededRandom(String((row as any).site_id) + "_equip");
+      return EQUIPMENT_LIST.map((name) => ({ name, available: rng() > 0.28 }));
+    })(),
+    recruitmentProcess: (() => {
+      const rng = createSeededRandom(String((row as any).site_id) + "_proc");
+      const score = Number((row as any).total_score ?? 50);
+      const randomized = Math.max(2, Math.min(14, Math.round((score / 100) * 13 + rng() * 2)));
+      const screening = Math.max(1, Math.min(4, Math.round(1 + rng() * 3)));
+      const notActivated = Math.max(0, 20 - randomized - screening);
+      return [
+        ...Array.from({ length: randomized }, (_, i) => ({ id: i + 1, status: "randomized" as const })),
+        ...Array.from({ length: screening }, (_, i) => ({ id: randomized + i + 1, status: "screening" as const })),
+        ...Array.from({ length: notActivated }, (_, i) => ({ id: randomized + screening + i + 1, status: "not_activated" as const })),
+      ];
+    })(),
   });
 });

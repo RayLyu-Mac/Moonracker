@@ -21,6 +21,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 h1,
@@ -35,4 +37,34 @@ h6 {
 
 p {
   margin: 0;
+}
+
+@media print {
+  body.print-site-report {
+    background: #fff;
+    font-size: 12pt;
+  }
+
+  body.print-site-report * {
+    visibility: hidden;
+  }
+
+  body.print-site-report .site-report-print-root,
+  body.print-site-report .site-report-print-root * {
+    visibility: visible;
+  }
+
+  body.print-site-report .site-report-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: 0;
+    box-shadow: none;
+    padding: 24px;
+  }
+
+  body.print-site-report .no-print {
+    display: none !important;
+  }
 }
