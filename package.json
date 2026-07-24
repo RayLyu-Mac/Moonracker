@@ -1,0 +1,30 @@
+{
+  "name": "moonracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site Enrollment Intelligence Dashboard MVP",
+  "scripts": {
+    "dev": "npm run dev -w apps/api & npm run dev -w apps/web",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "build": "npm run build -w apps/shared && npm run build -w apps/api && npm run build -w apps/web",
+    "lint": "npm run lint -w apps/web && npm run lint -w apps/api",
+    "test": "npm run test -w apps/api"
+  },
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "apps/shared"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RayLyu-Mac/Moonracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RayLyu-Mac/Moonracker/issues"
+  },
+  "homepage": "https://github.com/RayLyu-Mac/Moonracker#readme"
+}
